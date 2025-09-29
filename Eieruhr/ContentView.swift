@@ -846,11 +846,22 @@ struct EggInputView: View {
     // MARK: - View Components
     
     private var headerSection: some View {
-        Image("egg-logo")
-            .resizable()
-            .aspectRatio(contentMode: .fit)
-            .frame(maxWidth: 120, maxHeight: 120)
-            .shadow(color: .orange.opacity(0.3), radius: 12, x: 0, y: 6)
+        HStack(alignment: .center, spacing: 16) {
+            // Logo links
+            Image("egg-logo")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 80, height: 80)
+                .shadow(color: .orange.opacity(0.3), radius: 8, x: 0, y: 4)
+            
+            // App Titel rechts
+            Text("EIERUHR")
+                .font(.system(size: 32, weight: .bold, design: .rounded))
+                .foregroundColor(.primary)
+                .tracking(1.5)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 8)
     }
     
     private var eggSizeSection: some View {
