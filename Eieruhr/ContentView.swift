@@ -19,9 +19,9 @@ enum EggSize: String, CaseIterable, Codable {
     
     var displayName: String {
         switch self {
-        case .small: return "Klein (S)"
-        case .medium: return "Mittel (M)"
-        case .large: return "Groß (L)"
+        case .small: return NSLocalizedString("egg_size_small", comment: "Small egg size")
+        case .medium: return NSLocalizedString("egg_size_medium", comment: "Medium egg size")
+        case .large: return NSLocalizedString("egg_size_large", comment: "Large egg size")
         }
     }
     
@@ -41,9 +41,9 @@ enum EggConsistency: String, CaseIterable, Codable {
     
     var displayName: String {
         switch self {
-        case .soft: return "Weich"
-        case .medium: return "Medium"
-        case .hard: return "Hart"
+        case .soft: return NSLocalizedString("consistency_soft", comment: "Soft consistency")
+        case .medium: return NSLocalizedString("consistency_medium", comment: "Medium consistency")
+        case .hard: return NSLocalizedString("consistency_hard", comment: "Hard consistency")
         }
     }
     
@@ -63,8 +63,8 @@ enum StartingTemperature: String, CaseIterable, Codable {
     
     var displayName: String {
         switch self {
-        case .fridge: return "Kühlschrank (4°C)"
-        case .room: return "Raumtemperatur (20°C)"
+        case .fridge: return NSLocalizedString("temp_fridge", comment: "Refrigerator temperature")
+        case .room: return NSLocalizedString("temp_room", comment: "Room temperature")
         }
     }
     
@@ -82,8 +82,8 @@ enum WaterStart: String, CaseIterable, Codable {
     
     var displayName: String {
         switch self {
-        case .cold: return "Kalt"
-        case .boiling: return "Kochend"
+        case .cold: return NSLocalizedString("water_cold", comment: "Cold water")
+        case .boiling: return NSLocalizedString("water_boiling", comment: "Boiling water")
         }
     }
     
@@ -104,21 +104,24 @@ struct EggParameters: Codable {
     let startingTemperature: StartingTemperature
     let consistency: EggConsistency
     let waterStart: WaterStart
-    // Optional anpassbare Raumtemperatur, wenn StartingTemperature == .room
+    // Optional anpassbare Temperaturen
     let ambientRoomTemperature: Double?
+    let ambientFridgeTemperature: Double?
     
     init(size: EggSize = .medium,
          weight: Double? = nil,
          startingTemperature: StartingTemperature = .fridge,
          consistency: EggConsistency = .medium,
          waterStart: WaterStart = .boiling,
-         ambientRoomTemperature: Double? = nil) {
+         ambientRoomTemperature: Double? = nil,
+         ambientFridgeTemperature: Double? = nil) {
         self.size = size
         self.weight = weight ?? size.defaultWeight
         self.startingTemperature = startingTemperature
         self.consistency = consistency
         self.waterStart = waterStart
         self.ambientRoomTemperature = ambientRoomTemperature
+        self.ambientFridgeTemperature = ambientFridgeTemperature
     }
 }
 
@@ -144,6 +147,71 @@ struct ChickenBreed: Codable {
     let temperament: String
     let description: String
     let imageUrl: String
+    let links: [ChickenLink]?
+    
+    // Fallback local data using real API structure
+    static let fallbackBreeds: [ChickenBreed] = [
+        ChickenBreed(
+            name: "Leghorn",
+            origin: "Italy",
+            eggColor: "White",
+            eggSize: "Large",
+            eggNumber: 280,
+            temperament: "Active and assertive",
+            description: "Leghorns are prolific layers and very hardy.",
+            imageUrl: "https://qwex.co/chicken-api/images/leghorn.png",
+            links: nil
+        ),
+        ChickenBreed(
+            name: "Rhode Island Red",
+            origin: "USA",
+            eggColor: "Brown",
+            eggSize: "Large",
+            eggNumber: 250,
+            temperament: "Calm and friendly",
+            description: "A dual-purpose bird valued for both meat and eggs, friendly for backyard flocks.",
+            imageUrl: "https://qwex.co/chicken-api/images/rhode_island_red.png",
+            links: nil
+        ),
+        ChickenBreed(
+            name: "Sussex",
+            origin: "England",
+            eggColor: "Tinted",
+            eggSize: "Large",
+            eggNumber: 250,
+            temperament: "Friendly",
+            description: "Dual-purpose breed, very good layers.",
+            imageUrl: "https://qwex.co/chicken-api/images/sussex.png",
+            links: nil
+        ),
+        ChickenBreed(
+            name: "Orpington",
+            origin: "England",
+            eggColor: "Brown",
+            eggSize: "Large",
+            eggNumber: 200,
+            temperament: "Docile and friendly",
+            description: "Heavy birds known for their gentle personality and good layers.",
+            imageUrl: "https://qwex.co/chicken-api/images/orpington.png",
+            links: nil
+        ),
+        ChickenBreed(
+            name: "Marans",
+            origin: "France",
+            eggColor: "Dark Brown",
+            eggSize: "Large",
+            eggNumber: 200,
+            temperament: "Calm",
+            description: "Dark chocolate-brown eggs, good layers.",
+            imageUrl: "https://qwex.co/chicken-api/images/marans.png",
+            links: nil
+        )
+    ]
+}
+
+struct ChickenLink: Codable {
+    let rel: String
+    let href: String
 }
 
 @MainActor
@@ -152,44 +220,98 @@ class ChickenManager: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     
+    private var retryCount = 0
+    private let maxRetries = 2
+    
     func loadRandomChicken() {
+        Task {
+            await loadRandomChickenAsync()
+        }
+    }
+    
+    private func loadRandomChickenAsync() async {
         isLoading = true
         errorMessage = nil
+        retryCount = 0
         
-        guard let url = URL(string: "https://chickenapi.com/api/v1/breeds/") else {
-            errorMessage = "Ungültige URL"
-            isLoading = false
-            return
+        // Try API first, then fallback to local data
+        let success = await tryLoadFromAPI()
+        if !success {
+            loadFromFallback()
         }
+    }
+    
+    private func tryLoadFromAPI() async -> Bool {
+        // Use the correct chickenapi.com endpoint
+        let apiEndpoint = "https://chickenapi.com/api/v1/breeds/"
         
-        URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                
-                if let error = error {
-                    self.errorMessage = "Netzwerkfehler: \(error.localizedDescription)"
-                    self.isLoading = false
-                    return
-                }
-                
-                guard let data = data else {
-                    self.errorMessage = "Keine Daten erhalten"
-                    self.isLoading = false
-                    return
-                }
-                
-                do {
-                    // Decode array of chicken breeds
-                    let breeds = try JSONDecoder().decode([ChickenBreed].self, from: data)
-                    // Pick a random chicken
-                    self.currentChicken = breeds.randomElement()
-                    self.isLoading = false
-                } catch {
-                    self.errorMessage = "Fehler beim Dekodieren: \(error.localizedDescription)"
-                    self.isLoading = false
+        return await tryEndpoint(apiEndpoint)
+    }
+    
+    private func tryEndpoint(_ urlString: String) async -> Bool {
+        guard let url = URL(string: urlString) else { return false }
+        
+        do {
+            // Create URLRequest with timeout
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 10.0 // 10 seconds timeout
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            request.setValue("EieruhrApp/1.0", forHTTPHeaderField: "User-Agent")
+            
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            // Check HTTP response
+            if let httpResponse = response as? HTTPURLResponse {
+                print("HTTP Status: \(httpResponse.statusCode) for \(urlString)")
+                guard httpResponse.statusCode == 200 else {
+                    return false
                 }
             }
-        }.resume()
+            
+            // Validate data is not empty
+            guard !data.isEmpty else {
+                print("Empty response data for \(urlString)")
+                return false
+            }
+            
+            // Try to decode the response
+            let decoder = JSONDecoder()
+            // No need for snake case conversion as the API uses camelCase
+            
+            let breeds = try decoder.decode([ChickenBreed].self, from: data)
+            
+            if !breeds.isEmpty {
+                currentChicken = breeds.randomElement()
+                isLoading = false
+                print("Successfully loaded chicken from API: \(urlString)")
+                return true
+            } else {
+                print("Empty breeds array from \(urlString)")
+            }
+        } catch let decodingError as DecodingError {
+            print("Decoding error for \(urlString): \(decodingError)")
+            // Try alternative decoding strategies if needed
+        } catch {
+            print("API Error for \(urlString): \(error.localizedDescription)")
+        }
+        
+        return false
+    }
+    
+    private func loadFromFallback() {
+        print("Loading from fallback data")
+        currentChicken = ChickenBreed.fallbackBreeds.randomElement()
+        isLoading = false
+        errorMessage = nil // Clear error since we have fallback data
+    }
+    
+    func retryLoading() {
+        if retryCount < maxRetries {
+            retryCount += 1
+            loadRandomChicken()
+        } else {
+            loadFromFallback()
+        }
     }
 }
 
@@ -233,7 +355,13 @@ class EggCalculationEngine {
     /// Corrected formula based on heat transfer physics
     private static func calculateEggCookingTime(for parameters: EggParameters) -> TimeInterval {
         let tw = PhysicsConstants.waterTemperature
-        let t0 = (parameters.startingTemperature == .room ? (parameters.ambientRoomTemperature ?? StartingTemperature.room.temperature) : parameters.startingTemperature.temperature)
+        let t0: Double
+        switch parameters.startingTemperature {
+        case .room:
+            t0 = parameters.ambientRoomTemperature ?? StartingTemperature.room.temperature
+        case .fridge:
+            t0 = parameters.ambientFridgeTemperature ?? StartingTemperature.fridge.temperature
+        }
         let ty = parameters.consistency.targetTemperature
         
         let m = parameters.weight  // Keep in grams
@@ -295,7 +423,7 @@ class EggCalculationEngine {
         var errors: [String] = []
         
         if parameters.weight < 30 || parameters.weight > 90 {
-            errors.append("Gewicht muss zwischen 30g und 90g liegen")
+            errors.append(NSLocalizedString("weight_validation", comment: "Weight validation error"))
         }
         
         if errors.isEmpty {
@@ -355,7 +483,8 @@ class EggTimerViewModel: ObservableObject {
             startingTemperature: eggParameters.startingTemperature,
             consistency: eggParameters.consistency,
             waterStart: eggParameters.waterStart,
-            ambientRoomTemperature: eggParameters.ambientRoomTemperature
+            ambientRoomTemperature: eggParameters.ambientRoomTemperature,
+            ambientFridgeTemperature: eggParameters.ambientFridgeTemperature
         )
         clearValidationErrors()
         updatePreviewTime()
@@ -369,7 +498,8 @@ class EggTimerViewModel: ObservableObject {
             startingTemperature: eggParameters.startingTemperature,
             consistency: eggParameters.consistency,
             waterStart: eggParameters.waterStart,
-            ambientRoomTemperature: eggParameters.ambientRoomTemperature
+            ambientRoomTemperature: eggParameters.ambientRoomTemperature,
+            ambientFridgeTemperature: eggParameters.ambientFridgeTemperature
         )
         clearValidationErrors()
         updatePreviewTime()
@@ -383,7 +513,8 @@ class EggTimerViewModel: ObservableObject {
             startingTemperature: temperature,
             consistency: eggParameters.consistency,
             waterStart: eggParameters.waterStart,
-            ambientRoomTemperature: eggParameters.ambientRoomTemperature
+            ambientRoomTemperature: eggParameters.ambientRoomTemperature,
+            ambientFridgeTemperature: eggParameters.ambientFridgeTemperature
         )
         clearValidationErrors()
         updatePreviewTime()
@@ -397,7 +528,8 @@ class EggTimerViewModel: ObservableObject {
             startingTemperature: eggParameters.startingTemperature,
             consistency: consistency,
             waterStart: eggParameters.waterStart,
-            ambientRoomTemperature: eggParameters.ambientRoomTemperature
+            ambientRoomTemperature: eggParameters.ambientRoomTemperature,
+            ambientFridgeTemperature: eggParameters.ambientFridgeTemperature
         )
         clearValidationErrors()
         updatePreviewTime()
@@ -411,7 +543,8 @@ class EggTimerViewModel: ObservableObject {
             startingTemperature: eggParameters.startingTemperature,
             consistency: eggParameters.consistency,
             waterStart: waterStart,
-            ambientRoomTemperature: eggParameters.ambientRoomTemperature
+            ambientRoomTemperature: eggParameters.ambientRoomTemperature,
+            ambientFridgeTemperature: eggParameters.ambientFridgeTemperature
         )
         clearValidationErrors()
         updatePreviewTime()
@@ -425,7 +558,23 @@ class EggTimerViewModel: ObservableObject {
             startingTemperature: eggParameters.startingTemperature,
             consistency: eggParameters.consistency,
             waterStart: eggParameters.waterStart,
-            ambientRoomTemperature: max(0, temperature)
+            ambientRoomTemperature: max(0, temperature),
+            ambientFridgeTemperature: eggParameters.ambientFridgeTemperature
+        )
+        clearValidationErrors()
+        updatePreviewTime()
+        saveDefaults()
+    }
+    
+    func updateAmbientFridgeTemperature(_ temperature: Double) {
+        eggParameters = EggParameters(
+            size: eggParameters.size,
+            weight: eggParameters.weight,
+            startingTemperature: eggParameters.startingTemperature,
+            consistency: eggParameters.consistency,
+            waterStart: eggParameters.waterStart,
+            ambientRoomTemperature: eggParameters.ambientRoomTemperature,
+            ambientFridgeTemperature: max(-10, temperature)
         )
         clearValidationErrors()
         updatePreviewTime()
@@ -537,8 +686,8 @@ class EggTimerViewModel: ObservableObject {
     
     private func scheduleNotification() {
         let content = UNMutableNotificationContent()
-        content.title = "Eieruhr"
-        content.body = "Dein Ei ist fertig! 🥚"
+        content.title = NSLocalizedString("notification_title", comment: "Notification title")
+        content.body = NSLocalizedString("notification_body", comment: "Notification body")
         content.sound = .default
         content.badge = 1
         
@@ -688,7 +837,6 @@ struct EggInputView: View {
         .onAppear { 
             viewModel.updatePreviewTime()
             viewModel.clearBadge() // Clear badge when app starts
-            viewModel.requestNotificationPermission() // Ask for notification permission on app start
         }
         .onChange(of: scenePhase) {
             if scenePhase == .active { viewModel.appDidBecomeActive() }
@@ -707,7 +855,7 @@ struct EggInputView: View {
     
     private var eggSizeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Ei-Größe", systemImage: "scalemass")
+            Label(NSLocalizedString("egg_size_label", comment: "Egg size label"), systemImage: "scalemass")
                 .font(.headline)
             
             Picker("Ei-Größe", selection: Binding(
@@ -732,7 +880,7 @@ struct EggInputView: View {
     private var weightSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("Gewicht", systemImage: "scalemass.fill")
+                Label(NSLocalizedString("weight_label", comment: "Weight label"), systemImage: "scalemass.fill")
                     .font(.headline)
                 
                 Spacer()
@@ -750,7 +898,7 @@ struct EggInputView: View {
                 in: 30...90,
                 step: 1
             ) {
-                Text("Gewicht")
+                Text(NSLocalizedString("weight_slider_label", comment: "Weight slider label"))
             } minimumValueLabel: {
                 Text("30g")
                     .font(.caption)
@@ -767,7 +915,7 @@ struct EggInputView: View {
     
     private var temperatureSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Ausgangstemperatur", systemImage: "thermometer")
+            Label(NSLocalizedString("starting_temp_label", comment: "Starting temperature label"), systemImage: "thermometer")
                 .font(.headline)
             
             Picker("Ausgangstemperatur", selection: Binding(
@@ -786,9 +934,10 @@ struct EggInputView: View {
             .background(Color.blue.opacity(0.2))
             .cornerRadius(20)
 
+            // Temperature slider for both fridge and room temperature
             if viewModel.eggParameters.startingTemperature == .room {
                 HStack {
-                    Text("Raumtemperatur: \(Int(viewModel.eggParameters.ambientRoomTemperature ?? 20))°C")
+                    Text("\(NSLocalizedString("temp_room_label", comment: "Room temperature label")): \(Int(viewModel.eggParameters.ambientRoomTemperature ?? 20))°C")
                         .font(.subheadline)
                         .foregroundColor(.orange)
                     Spacer()
@@ -801,11 +950,33 @@ struct EggInputView: View {
                     in: 10...30,
                     step: 0.5
                 ) {
-                    Text("Raumtemperatur")
+                    Text(NSLocalizedString("temp_room_label", comment: "Room temperature label"))
                 } minimumValueLabel: {
                     Text("10°C").font(.caption).foregroundColor(.secondary)
                 } maximumValueLabel: {
                     Text("30°C").font(.caption).foregroundColor(.secondary)
+                }
+                .accentColor(.orange)
+            } else if viewModel.eggParameters.startingTemperature == .fridge {
+                HStack {
+                    Text("\(NSLocalizedString("temp_fridge_label", comment: "Fridge temperature label")): \(Int(viewModel.eggParameters.ambientFridgeTemperature ?? 4))°C")
+                        .font(.subheadline)
+                        .foregroundColor(.orange)
+                    Spacer()
+                }
+                Slider(
+                    value: Binding(
+                        get: { viewModel.eggParameters.ambientFridgeTemperature ?? 4 },
+                        set: { viewModel.updateAmbientFridgeTemperature($0) }
+                    ),
+                    in: -5...15,
+                    step: 0.5
+                ) {
+                    Text(NSLocalizedString("temp_fridge_label", comment: "Fridge temperature label"))
+                } minimumValueLabel: {
+                    Text("-5°C").font(.caption).foregroundColor(.secondary)
+                } maximumValueLabel: {
+                    Text("15°C").font(.caption).foregroundColor(.secondary)
                 }
                 .accentColor(.orange)
             }
@@ -815,7 +986,7 @@ struct EggInputView: View {
     
     private var consistencySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Konsistenz", systemImage: "drop.fill")
+            Label(NSLocalizedString("consistency_label", comment: "Consistency label"), systemImage: "drop.fill")
                 .font(.headline)
             
             Picker("Konsistenz", selection: Binding(
@@ -839,7 +1010,7 @@ struct EggInputView: View {
     
     private var waterStartSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Wasserstart", systemImage: "flame.fill")
+            Label(NSLocalizedString("water_start_label", comment: "Water start label"), systemImage: "flame.fill")
                 .font(.headline)
             
             Picker("Wasserstart", selection: Binding(
@@ -882,7 +1053,7 @@ struct EggInputView: View {
         HStack {
             Image(systemName: "clock")
                 .foregroundColor(.orange)
-            Text("Berechnete Kochzeit:")
+            Text(NSLocalizedString("calculated_time_label", comment: "Calculated cooking time label"))
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             
@@ -904,7 +1075,7 @@ struct EggInputView: View {
         Button(action: viewModel.calculateAndStartTimer) {
             HStack {
                 Image(systemName: "play.fill")
-                Text("Timer starten")
+                Text(NSLocalizedString("start_timer_button", comment: "Start timer button"))
                     .fontWeight(.semibold)
             }
             .frame(maxWidth: .infinity)
@@ -926,11 +1097,11 @@ struct EggTimerView: View {
     var body: some View {
         VStack(spacing: 16) {
             // Title - kompakter
-            Text("Timer läuft")
+            Text(NSLocalizedString("timer_running", comment: "Timer running text"))
                 .font(.title2)
                 .fontWeight(.bold)
                 .foregroundColor(.primary)
-                .padding(.top, 8)
+                .padding(.top, 28)
             
             // Header
             timerHeaderSection
@@ -942,28 +1113,39 @@ struct EggTimerView: View {
             }
             .frame(height: 250) // Kleinere Höhe für den Timer-Bereich
             
-            // Control buttons and chicken in horizontal layout
-            HStack(alignment: .top, spacing: 20) {
-                // Stop button - weiter links
-                Button(action: {
-                    viewModel.stopAndReturn()
-                }) {
-                    VStack {
-                        Image(systemName: "stop.fill")
-                            .font(.title2)
-                            .foregroundColor(.red)
-                        Text("Timer stoppen")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.red)
-                    }
-                    .frame(width: 90, height: 70)
+            // Stop button - prominenter und größer
+            Button(action: {
+                viewModel.stopAndReturn()
+            }) {
+                HStack(spacing: 12) {
+                    Image(systemName: "stop.fill")
+                        .font(.title)
+                        .foregroundColor(.white)
+                    Text(NSLocalizedString("stop_timer", comment: "Stop timer button"))
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
                 }
-                
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .background(
+                    LinearGradient(
+                        gradient: Gradient(colors: [Color.red, Color.red.opacity(0.8)]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .cornerRadius(16)
+                .shadow(color: .red.opacity(0.3), radius: 8, x: 0, y: 4)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            
+            // Chicken section
+            HStack {
                 Spacer()
-                
-                // Chicken section - größer mit mehr Daten
                 expandedChickenSection
+                Spacer()
             }
             .padding(.horizontal)
             
@@ -985,11 +1167,11 @@ struct EggTimerView: View {
             HStack {
                 Image(systemName: "timer")
                     .foregroundColor(.orange)
-                Text("Ei wird gekocht...")
+                Text(NSLocalizedString("egg_cooking", comment: "Egg cooking text"))
                     .font(.headline)
             }
             
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 InfoChip(
                     icon: "scalemass",
                     text: "\(Int(viewModel.eggParameters.weight))g"
@@ -997,7 +1179,9 @@ struct EggTimerView: View {
                 
                 InfoChip(
                     icon: "thermometer",
-                    text: viewModel.eggParameters.startingTemperature == .fridge ? "4°C" : "\(Int(viewModel.eggParameters.ambientRoomTemperature ?? 20))°C"
+                    text: viewModel.eggParameters.startingTemperature == .fridge ? 
+                        "\(NSLocalizedString("temp_fridge", comment: "Fridge")) \(Int(viewModel.eggParameters.ambientFridgeTemperature ?? 4))°C" : 
+                        "\(NSLocalizedString("temp_room", comment: "Room")) \(Int(viewModel.eggParameters.ambientRoomTemperature ?? 20))°C"
                 )
                 
                 InfoChip(
@@ -1039,7 +1223,7 @@ struct EggTimerView: View {
                     .font(.system(size: 48, weight: .bold, design: .monospaced))
                     .foregroundColor(.primary)
                 
-                Text("verbleibend")
+                Text(NSLocalizedString("remaining", comment: "Remaining time text"))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -1062,7 +1246,7 @@ struct EggTimerView: View {
                 VStack {
                     ProgressView()
                         .scaleEffect(0.8)
-                    Text("Lade Hühnerrasse...")
+                    Text(NSLocalizedString("loading_chicken", comment: "Loading chicken text"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -1083,6 +1267,10 @@ struct EggTimerView: View {
                     }
                     .frame(width: 100, height: 100)
                     .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.black, lineWidth: 1)
+                    )
                     
                     // Chicken info - erweitert
                     VStack(spacing: 4) {
@@ -1091,7 +1279,7 @@ struct EggTimerView: View {
                             .fontWeight(.bold)
                             .multilineTextAlignment(.center)
                         
-                        Text("Herkunft: \(chicken.origin)")
+                        Text("\(NSLocalizedString("origin_label", comment: "Origin label")) \(chicken.origin)")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
@@ -1104,7 +1292,7 @@ struct EggTimerView: View {
                             .font(.caption2)
                             .foregroundColor(.orange)
                             
-                            Text("📊 \(chicken.eggNumber) Eier/Jahr")
+                            Text("📊 \(chicken.eggNumber) \(NSLocalizedString("eggs_per_year", comment: "Eggs per year"))")
                                 .font(.caption2)
                                 .foregroundColor(.orange)
                             
@@ -1117,7 +1305,7 @@ struct EggTimerView: View {
                     }
                     
                     // Refresh button
-                    Button("Neues Huhn 🐔") {
+                    Button(NSLocalizedString("new_chicken", comment: "New chicken button")) {
                         chickenManager.loadRandomChicken()
                     }
                     .font(.caption)
@@ -1131,10 +1319,28 @@ struct EggTimerView: View {
                 VStack {
                     Text("🐔")
                         .font(.title2)
-                    Text("Fehler beim Laden")
+                    Text(NSLocalizedString("connection_error", comment: "Connection error text"))
                         .font(.caption)
                         .foregroundColor(.red)
-                    Button("Erneut versuchen") {
+                    Text(NSLocalizedString("using_local_data", comment: "Using local data text"))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Button(NSLocalizedString("retry", comment: "Retry button")) {
+                        chickenManager.retryLoading()
+                    }
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                }
+                .padding(12)
+            } else {
+                // Show fallback when no chicken is loaded yet
+                VStack {
+                    Text("🐔")
+                        .font(.title2)
+                    Text(NSLocalizedString("loading_chicken", comment: "Loading chicken text"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Button(NSLocalizedString("load_chicken", comment: "Load chicken button")) {
                         chickenManager.loadRandomChicken()
                     }
                     .font(.caption)
@@ -1160,10 +1366,10 @@ struct EggTimerView: View {
             
             // Claim Text
             VStack(alignment: .leading, spacing: 2) {
-                Text("Nutzen Sie Bio Eier für")
+                Text(NSLocalizedString("bio_text_1", comment: "Bio text 1"))
                     .font(.caption)
                     .foregroundColor(.secondary)
-                Text("glücklichere Hühner")
+                Text(NSLocalizedString("bio_text_2", comment: "Bio text 2"))
                     .font(.caption)
                     .fontWeight(.semibold)
                     .foregroundColor(.green)

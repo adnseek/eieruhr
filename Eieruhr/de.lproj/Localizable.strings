@@ -1,0 +1,61 @@
+/* German Localization */
+
+/* Egg Sizes */
+"egg_size_small" = "Klein (S)";
+"egg_size_medium" = "Mittel (M)";
+"egg_size_large" = "Groß (L)";
+
+/* Egg Consistency */
+"consistency_soft" = "Weich";
+"consistency_medium" = "Medium";
+"consistency_hard" = "Hart";
+
+/* Starting Temperature */
+"temp_fridge" = "Kühlschrank";
+"temp_room" = "Raumtemperatur";
+"temp_fridge_label" = "Kühlschranktemperatur";
+"temp_room_label" = "Raumtemperatur";
+
+/* Water Start */
+"water_cold" = "Kalt";
+"water_boiling" = "Kochend";
+
+/* UI Labels */
+"egg_size_label" = "Ei-Größe";
+"weight_label" = "Gewicht";
+"weight_slider_label" = "Gewicht";
+"starting_temp_label" = "Ausgangstemperatur";
+"consistency_label" = "Konsistenz";
+"water_start_label" = "Wasser-Start";
+"calculated_time_label" = "Berechnete Kochzeit:";
+"start_timer_button" = "Timer starten";
+
+/* Timer View */
+"timer_running" = "Timer läuft";
+"egg_cooking" = "Ei wird gekocht...";
+"remaining" = "verbleibend";
+"stop_timer" = "Timer stoppen";
+
+/* Chicken Loading */
+"loading_chicken" = "Lade Hühnerrasse...";
+"connection_error" = "Verbindungsfehler";
+"using_local_data" = "Verwende lokale Daten";
+"retry" = "Wiederholen";
+"load_chicken" = "Huhn laden";
+"new_chicken" = "Neues Huhn 🐔";
+"loading_error" = "Ladefehler";
+
+/* Chicken Breed Info */
+"origin_label" = "Herkunft:";
+"eggs_per_year" = "Eier/Jahr";
+
+/* Bio Section */
+"bio_text_1" = "Verwende Bio-Eier für";
+"bio_text_2" = "glücklichere Hühner";
+
+/* Validation */
+"weight_validation" = "Gewicht muss zwischen 30g und 90g liegen";
+
+/* Notifications */
+"notification_title" = "Eieruhr";
+"notification_body" = "Dein Ei ist fertig! 🥚";

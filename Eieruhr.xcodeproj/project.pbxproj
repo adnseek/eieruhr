@@ -187,11 +187,12 @@
 				};
 			};
 			buildConfigurationList = DDA0F1AE2E852B50003FD5CD /* Build configuration list for PBXProject "Eieruhr" */;
-			developmentRegion = en;
+			developmentRegion = de;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 				Base,
+				de,
 			);
 			mainGroup = DDA0F1AA2E852B50003FD5CD;
 			minimizedProjectReferenceProxies = 1;

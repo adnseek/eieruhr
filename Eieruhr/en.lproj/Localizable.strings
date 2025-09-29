@@ -1,0 +1,61 @@
+/* English Localization */
+
+/* Egg Sizes */
+"egg_size_small" = "Small (S)";
+"egg_size_medium" = "Medium (M)";
+"egg_size_large" = "Large (L)";
+
+/* Egg Consistency */
+"consistency_soft" = "Soft";
+"consistency_medium" = "Medium";
+"consistency_hard" = "Hard";
+
+/* Starting Temperature */
+"temp_fridge" = "Refrigerator";
+"temp_room" = "Room Temperature";
+"temp_fridge_label" = "Refrigerator Temperature";
+"temp_room_label" = "Room Temperature";
+
+/* Water Start */
+"water_cold" = "Cold";
+"water_boiling" = "Boiling";
+
+/* UI Labels */
+"egg_size_label" = "Egg Size";
+"weight_label" = "Weight";
+"weight_slider_label" = "Weight";
+"starting_temp_label" = "Starting Temperature";
+"consistency_label" = "Consistency";
+"water_start_label" = "Water Start";
+"calculated_time_label" = "Calculated Cooking Time:";
+"start_timer_button" = "Start Timer";
+
+/* Timer View */
+"timer_running" = "Timer Running";
+"egg_cooking" = "Egg is cooking...";
+"remaining" = "remaining";
+"stop_timer" = "Stop Timer";
+
+/* Chicken Loading */
+"loading_chicken" = "Loading chicken breed...";
+"connection_error" = "Connection Error";
+"using_local_data" = "Using local data";
+"retry" = "Retry";
+"load_chicken" = "Load Chicken";
+"new_chicken" = "New Chicken 🐔";
+"loading_error" = "Loading Error";
+
+/* Chicken Breed Info */
+"origin_label" = "Origin:";
+"eggs_per_year" = "eggs/year";
+
+/* Bio Section */
+"bio_text_1" = "Use organic eggs for";
+"bio_text_2" = "happier chickens";
+
+/* Validation */
+"weight_validation" = "Weight must be between 30g and 90g";
+
+/* Notifications */
+"notification_title" = "Egg Timer";
+"notification_body" = "Your egg is ready! 🥚";
