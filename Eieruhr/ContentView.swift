@@ -790,6 +790,7 @@ struct ContentView: View {
 struct EggInputView: View {
     @StateObject private var viewModel = EggTimerViewModel()
     @Environment(\.scenePhase) private var scenePhase
+    @State private var showingScientificExplanation = false
     
     var body: some View {
         NavigationView {
@@ -841,6 +842,9 @@ struct EggInputView: View {
         .onChange(of: scenePhase) {
             if scenePhase == .active { viewModel.appDidBecomeActive() }
         }
+        .sheet(isPresented: $showingScientificExplanation) {
+            ScientificExplanationView(parameters: viewModel.eggParameters)
+        }
     }
     
     // MARK: - View Components
@@ -854,11 +858,31 @@ struct EggInputView: View {
                 .frame(width: 80, height: 80)
                 .shadow(color: .orange.opacity(0.3), radius: 8, x: 0, y: 4)
             
-            // App Titel rechts
+            // App Titel in der Mitte
             Text("EIERUHR")
                 .font(.system(size: 32, weight: .bold, design: .rounded))
                 .foregroundColor(.primary)
                 .tracking(1.5)
+            
+            // Wissenschafts-Icon rechts
+            Button(action: {
+                showingScientificExplanation = true
+            }) {
+                VStack(spacing: 1) {
+                    Image(systemName: "flask.fill")
+                        .font(.title2)
+                        .foregroundColor(.orange)
+                        .frame(width: 44, height: 44)
+                        .background(Color.orange.opacity(0.1))
+                        .clipShape(Circle())
+                    
+                    Text(NSLocalizedString("science_hint", comment: "Science hint text"))
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.orange)
+                        .multilineTextAlignment(.center)
+                }
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 8)
@@ -866,8 +890,13 @@ struct EggInputView: View {
     
     private var eggSizeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(NSLocalizedString("egg_size_label", comment: "Egg size label"), systemImage: "scalemass")
-                .font(.headline)
+            HStack {
+                Image(systemName: "oval")
+                    .font(.headline)
+                    .rotationEffect(.degrees(90))
+                Text(NSLocalizedString("egg_size_label", comment: "Egg size label"))
+                    .font(.headline)
+            }
             
             Picker("Ei-Größe", selection: Binding(
                 get: { viewModel.eggParameters.size },
@@ -1414,6 +1443,221 @@ struct InfoChip: View {
         .padding(.vertical, 6)
         .background(Color.gray.opacity(0.1))
         .cornerRadius(8)
+    }
+}
+
+// MARK: - Scientific Explanation View
+
+struct ScientificExplanationView: View {
+    let parameters: EggParameters
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Header
+                    VStack(spacing: 8) {
+                        Image(systemName: "flask.fill")
+                            .font(.system(size: 50))
+                            .foregroundColor(.orange)
+                        
+                        Text(NSLocalizedString("scientific_title", comment: "Scientific explanation title"))
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 10)
+                    
+                    // Current Parameters
+                    currentParametersSection
+                    
+                    // Formula Explanation
+                    formulaExplanationSection
+                    
+                    // Physics Background
+                    physicsBackgroundSection
+                    
+                    // Cooking Tips
+                    cookingTipsSection
+                    
+                    Spacer(minLength: 20)
+                }
+                .padding()
+            }
+            .navigationTitle("")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(NSLocalizedString("close", comment: "Close button")) {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private var currentParametersSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(NSLocalizedString("current_parameters", comment: "Current parameters title"))
+                .font(.headline)
+                .foregroundColor(.primary)
+            
+            VStack(alignment: .leading, spacing: 8) {
+                parameterRow(icon: "scalemass", label: NSLocalizedString("weight_label", comment: "Weight"), value: "\(Int(parameters.weight))g")
+                parameterRow(icon: "thermometer", label: NSLocalizedString("starting_temp_label", comment: "Starting temp"), value: parameters.startingTemperature.displayName)
+                parameterRow(icon: "drop", label: NSLocalizedString("consistency_label", comment: "Consistency"), value: parameters.consistency.displayName)
+                parameterRow(icon: "flame", label: NSLocalizedString("water_start_label", comment: "Water start"), value: parameters.waterStart.displayName)
+            }
+            .padding()
+            .background(Color.gray.opacity(0.1))
+            .cornerRadius(12)
+        }
+    }
+    
+    private var formulaExplanationSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(NSLocalizedString("formula_title", comment: "Formula title"))
+                .font(.headline)
+                .foregroundColor(.primary)
+            
+            Text(NSLocalizedString("formula_description", comment: "Formula description"))
+                .font(.body)
+                .foregroundColor(.secondary)
+            
+            // Formula display
+            VStack(alignment: .leading, spacing: 8) {
+                Text("t = (M^(2/3) × c × ρ^(1/3)) / (K × π² × α) × ln[0.76 × (T₀ - Tᵨ) / (Tᵧ - Tᵨ)]")
+                    .font(.system(.body, design: .monospaced))
+                
+                Divider()
+                
+                // Calculated result - centered
+                let calculatedTime = EggCalculationEngine.calculateCookingTime(for: parameters)
+                let minutes = Int(calculatedTime) / 60
+                let seconds = Int(calculatedTime) % 60
+                
+                HStack {
+                    Spacer()
+                    Text("t = \(minutes):\(String(format: "%02d", seconds)) min")
+                        .font(.system(.title2, design: .monospaced))
+                        .fontWeight(.bold)
+                        .foregroundColor(.orange)
+                    Spacer()
+                }
+            }
+            .padding()
+            .background(Color.orange.opacity(0.1))
+            .cornerRadius(8)
+            
+            // Variable explanations
+            VStack(alignment: .leading, spacing: 6) {
+                variableExplanation("M", NSLocalizedString("mass_explanation", comment: "Mass explanation"), "\(Int(parameters.weight))g")
+                variableExplanation("T₀", NSLocalizedString("initial_temp_explanation", comment: "Initial temp explanation"), "\(Int(parameters.startingTemperature.temperature))°C")
+                variableExplanation("Tᵧ", NSLocalizedString("target_temp_explanation", comment: "Target temp explanation"), "\(Int(parameters.consistency.targetTemperature))°C")
+                variableExplanation("Tᵨ", NSLocalizedString("water_temp_explanation", comment: "Water temp explanation"), "100°C")
+                variableExplanation("c", NSLocalizedString("heat_capacity_explanation", comment: "Heat capacity explanation"), "3.7 J/gK")
+                variableExplanation("ρ", NSLocalizedString("density_explanation", comment: "Density explanation"), "1.038 g/cm³")
+                variableExplanation("α", NSLocalizedString("thermal_diffusivity_explanation", comment: "Thermal diffusivity explanation"), "0.0011 cm²/s")
+            }
+            .padding()
+            .background(Color.gray.opacity(0.05))
+            .cornerRadius(8)
+        }
+    }
+    
+    private var physicsBackgroundSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(NSLocalizedString("physics_background_title", comment: "Physics background title"))
+                .font(.headline)
+                .foregroundColor(.primary)
+            
+            Text(NSLocalizedString("physics_background_text", comment: "Physics background text"))
+                .font(.body)
+                .foregroundColor(.secondary)
+        }
+    }
+    
+    private var cookingTipsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(NSLocalizedString("cooking_tips_title", comment: "Cooking tips title"))
+                .font(.headline)
+                .foregroundColor(.primary)
+            
+            VStack(alignment: .leading, spacing: 10) {
+                cookingTip(
+                    icon: "drop.fill",
+                    title: NSLocalizedString("tip_salt_vinegar_title", comment: "Salt vinegar tip title"),
+                    description: NSLocalizedString("tip_salt_vinegar_text", comment: "Salt vinegar tip text")
+                )
+                
+                cookingTip(
+                    icon: "flame.fill",
+                    title: NSLocalizedString("tip_gentle_boiling_title", comment: "Gentle boiling tip title"),
+                    description: NSLocalizedString("tip_gentle_boiling_text", comment: "Gentle boiling tip text")
+                )
+            }
+            .padding()
+            .background(Color.orange.opacity(0.05))
+            .cornerRadius(12)
+        }
+    }
+    
+    private func cookingTip(icon: String, title: String, description: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(.orange)
+                .frame(width: 24, height: 24)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+    
+    private func parameterRow(icon: String, label: String, value: String) -> some View {
+        HStack {
+            Image(systemName: icon)
+                .foregroundColor(.orange)
+                .frame(width: 20)
+            Text(label)
+                .font(.subheadline)
+            Spacer()
+            Text(value)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+        }
+    }
+    
+    private func variableExplanation(_ variable: String, _ description: String, _ value: String) -> some View {
+        HStack(alignment: .top) {
+            Text(variable)
+                .font(.system(.body, design: .monospaced))
+                .fontWeight(.bold)
+                .foregroundColor(.orange)
+                .frame(width: 30, alignment: .leading)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text(value)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+            }
+            
+            Spacer()
+        }
     }
 }
 

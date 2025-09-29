@@ -21,12 +21,12 @@
 "water_boiling" = "Boiling";
 
 /* UI Labels */
-"egg_size_label" = "Egg Size";
+"egg_size_label" = "Size";
 "weight_label" = "Weight";
 "weight_slider_label" = "Weight";
 "starting_temp_label" = "Starting Temperature";
-"consistency_label" = "Consistency";
-"water_start_label" = "Water Start";
+"consistency_label" = "Desired Consistency";
+"water_start_label" = "Initial Water Temperature";
 "calculated_time_label" = "Calculated Cooking Time:";
 "start_timer_button" = "Start Timer";
 
@@ -59,3 +59,28 @@
 /* Notifications */
 "notification_title" = "Egg Timer";
 "notification_body" = "Your egg is ready! 🥚";
+
+/* Scientific Explanation */
+"science_hint" = "Science!";
+"scientific_title" = "The Science Behind the Egg Timer";
+"current_parameters" = "Your Current Parameters";
+"formula_title" = "The Physics Formula";
+"formula_description" = "This formula is based on heat transfer laws and calculates how long it takes for the yolk to reach the desired temperature:";
+"physics_background_title" = "Physics Background";
+"physics_background_text" = "The calculation is based on Fourier's heat conduction equation. An egg is a complex system of egg white and yolk with different thermal properties. The formula considers the egg's mass, its thermal properties, and temperature differences to determine the optimal cooking time.";
+"mass_explanation" = "Mass of the egg";
+"initial_temp_explanation" = "Initial temperature of the egg";
+"target_temp_explanation" = "Target temperature for desired consistency";
+"water_temp_explanation" = "Temperature of boiling water";
+"heat_capacity_explanation" = "Specific heat capacity of the egg";
+"density_explanation" = "Density of the egg";
+"thermal_diffusivity_explanation" = "Thermal diffusivity of the egg";
+
+/* Cooking Tips */
+"cooking_tips_title" = "Egg Cooking Tips";
+"tip_salt_vinegar_title" = "Add Salt or Vinegar to Water";
+"tip_salt_vinegar_text" = "A teaspoon of salt or vinegar in the cooking water ensures that cracked eggs don't leak out but seal immediately.";
+"tip_gentle_boiling_title" = "Gentle Simmering";
+"tip_gentle_boiling_text" = "The water should only simmer gently, not boil vigorously. This prevents eggs from bouncing around and cracking.";
+
+"close" = "Close";

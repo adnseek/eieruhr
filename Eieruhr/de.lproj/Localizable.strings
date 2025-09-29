@@ -21,12 +21,12 @@
 "water_boiling" = "Kochend";
 
 /* UI Labels */
-"egg_size_label" = "Ei-Größe";
+"egg_size_label" = "Größe";
 "weight_label" = "Gewicht";
 "weight_slider_label" = "Gewicht";
 "starting_temp_label" = "Ausgangstemperatur";
-"consistency_label" = "Konsistenz";
-"water_start_label" = "Wasser-Start";
+"consistency_label" = "Gewünschte Konsistenz";
+"water_start_label" = "Wassertemperatur zu Beginn";
 "calculated_time_label" = "Berechnete Kochzeit:";
 "start_timer_button" = "Timer starten";
 
@@ -59,3 +59,28 @@
 /* Notifications */
 "notification_title" = "Eieruhr";
 "notification_body" = "Dein Ei ist fertig! 🥚";
+
+/* Scientific Explanation */
+"science_hint" = "Science!";
+"scientific_title" = "Die Wissenschaft hinter der Eieruhr";
+"current_parameters" = "Deine aktuellen Parameter";
+"formula_title" = "Die Physik-Formel";
+"formula_description" = "Diese Formel basiert auf Wärmeübertragungsgesetzen und berechnet, wie lange es dauert, bis das Eigelb die gewünschte Temperatur erreicht:";
+"physics_background_title" = "Physikalischer Hintergrund";
+"physics_background_text" = "Die Berechnung basiert auf der Fourier'schen Wärmeleitungsgleichung. Ein Ei ist ein komplexes System aus Eiweiß und Eigelb mit unterschiedlichen thermischen Eigenschaften. Die Formel berücksichtigt die Masse des Eis, seine thermischen Eigenschaften und die Temperaturdifferenzen, um die optimale Kochzeit zu bestimmen.";
+"mass_explanation" = "Masse des Eis";
+"initial_temp_explanation" = "Anfangstemperatur des Eis";
+"target_temp_explanation" = "Zieltemperatur für gewünschte Konsistenz";
+"water_temp_explanation" = "Temperatur des kochenden Wassers";
+"heat_capacity_explanation" = "Spezifische Wärmekapazität des Eis";
+"density_explanation" = "Dichte des Eis";
+"thermal_diffusivity_explanation" = "Temperaturleitfähigkeit des Eis";
+
+/* Cooking Tips */
+"cooking_tips_title" = "Tipps beim Eierkochen";
+"tip_salt_vinegar_title" = "Salz oder Essig ins Wasser";
+"tip_salt_vinegar_text" = "Ein Teelöffel Salz oder Essig im Kochwasser sorgt dafür, dass gerissene Eier nicht auseinanderlaufen, sondern sich sofort verschließen.";
+"tip_gentle_boiling_title" = "Sanft sprudelnd kochen";
+"tip_gentle_boiling_text" = "Das Wasser sollte nur leicht sprudeln, nicht stark kochen. So hüpfen die Eier nicht herum und gehen nicht kaputt.";
+
+"close" = "Schließen";
