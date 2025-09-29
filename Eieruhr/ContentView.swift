@@ -868,21 +868,21 @@ struct EggInputView: View {
             Button(action: {
                 showingScientificExplanation = true
             }) {
-                VStack(spacing: 1) {
+                VStack(spacing: 0) {
                     Image(systemName: "flask.fill")
-                        .font(.title2)
+                        .font(.title3)
                         .foregroundColor(.orange)
-                        .frame(width: 44, height: 44)
-                        .background(Color.orange.opacity(0.1))
-                        .clipShape(Circle())
                     
                     Text(NSLocalizedString("science_hint", comment: "Science hint text"))
                         .font(.caption2)
-                        .fontWeight(.semibold)
+                        .fontWeight(.medium)
                         .foregroundColor(.orange)
                         .multilineTextAlignment(.center)
+                        .lineLimit(1)
                 }
+                .frame(width: 60)
             }
+            .buttonStyle(PlainButtonStyle())
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 8)
@@ -1135,13 +1135,13 @@ struct EggTimerView: View {
     @StateObject private var chickenManager = ChickenManager()
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 12) {
             // Title - kompakter
             Text(NSLocalizedString("timer_running", comment: "Timer running text"))
-                .font(.title2)
+                .font(.title3)
                 .fontWeight(.bold)
                 .foregroundColor(.primary)
-                .padding(.top, 28)
+                .padding(.top, 8)
             
             // Header
             timerHeaderSection
@@ -1151,7 +1151,7 @@ struct EggTimerView: View {
                 timerDisplaySection(size: geometry.size)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
-            .frame(height: 250) // Kleinere Höhe für den Timer-Bereich
+            .frame(height: 200) // Noch kleinere Höhe für den Timer-Bereich
             
             // Stop button - prominenter und größer
             Button(action: {
@@ -1203,7 +1203,7 @@ struct EggTimerView: View {
     // MARK: - Timer View Components
     
     private var timerHeaderSection: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 4) {
             HStack {
                 Image(systemName: "timer")
                     .foregroundColor(.orange)
@@ -1234,7 +1234,7 @@ struct EggTimerView: View {
     }
     
     private func timerDisplaySection(size: CGSize) -> some View {
-        let circleSize: CGFloat = 250 // Feste Größe statt berechnet
+        let circleSize: CGFloat = 200 // Kleinere Größe für mehr Platz
         
         return ZStack {
             // Background circle
@@ -1260,7 +1260,7 @@ struct EggTimerView: View {
             // Timer text
             VStack(spacing: 8) {
                 Text(viewModel.formattedRemainingTime)
-                    .font(.system(size: 48, weight: .bold, design: .monospaced))
+                    .font(.system(size: 40, weight: .bold, design: .monospaced))
                     .foregroundColor(.primary)
                 
                 Text(NSLocalizedString("remaining", comment: "Remaining time text"))
