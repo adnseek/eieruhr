@@ -104,17 +104,21 @@ struct EggParameters: Codable {
     let startingTemperature: StartingTemperature
     let consistency: EggConsistency
     let waterStart: WaterStart
+    // Optional anpassbare Raumtemperatur, wenn StartingTemperature == .room
+    let ambientRoomTemperature: Double?
     
-    init(size: EggSize = .medium, 
-         weight: Double? = nil, 
-         startingTemperature: StartingTemperature = .fridge, 
+    init(size: EggSize = .medium,
+         weight: Double? = nil,
+         startingTemperature: StartingTemperature = .fridge,
          consistency: EggConsistency = .medium,
-         waterStart: WaterStart = .boiling) {
+         waterStart: WaterStart = .boiling,
+         ambientRoomTemperature: Double? = nil) {
         self.size = size
         self.weight = weight ?? size.defaultWeight
         self.startingTemperature = startingTemperature
         self.consistency = consistency
         self.waterStart = waterStart
+        self.ambientRoomTemperature = ambientRoomTemperature
     }
 }
 
@@ -126,6 +130,67 @@ struct PhysicsConstants {
     static let density: Double = 1.038           // ρ in g/cm³
     static let dimensionlessFactor: Double = 1.0 // K
     static let pi = Double.pi
+}
+
+
+// MARK: - Chicken API Models
+
+struct ChickenBreed: Codable {
+    let name: String
+    let origin: String
+    let eggColor: String
+    let eggSize: String
+    let eggNumber: Int
+    let temperament: String
+    let description: String
+    let imageUrl: String
+}
+
+@MainActor
+class ChickenManager: ObservableObject {
+    @Published var currentChicken: ChickenBreed?
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    
+    func loadRandomChicken() {
+        isLoading = true
+        errorMessage = nil
+        
+        guard let url = URL(string: "https://chickenapi.com/api/v1/breeds/") else {
+            errorMessage = "Ungültige URL"
+            isLoading = false
+            return
+        }
+        
+        URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                
+                if let error = error {
+                    self.errorMessage = "Netzwerkfehler: \(error.localizedDescription)"
+                    self.isLoading = false
+                    return
+                }
+                
+                guard let data = data else {
+                    self.errorMessage = "Keine Daten erhalten"
+                    self.isLoading = false
+                    return
+                }
+                
+                do {
+                    // Decode array of chicken breeds
+                    let breeds = try JSONDecoder().decode([ChickenBreed].self, from: data)
+                    // Pick a random chicken
+                    self.currentChicken = breeds.randomElement()
+                    self.isLoading = false
+                } catch {
+                    self.errorMessage = "Fehler beim Dekodieren: \(error.localizedDescription)"
+                    self.isLoading = false
+                }
+            }
+        }.resume()
+    }
 }
 
 // MARK: - Validation Result
@@ -168,8 +233,9 @@ class EggCalculationEngine {
     /// Corrected formula based on heat transfer physics
     private static func calculateEggCookingTime(for parameters: EggParameters) -> TimeInterval {
         let tw = PhysicsConstants.waterTemperature
-        let t0 = parameters.startingTemperature.temperature
+        let t0 = (parameters.startingTemperature == .room ? (parameters.ambientRoomTemperature ?? StartingTemperature.room.temperature) : parameters.startingTemperature.temperature)
         let ty = parameters.consistency.targetTemperature
+        
         let m = parameters.weight  // Keep in grams
         let c = PhysicsConstants.heatCapacity
         let rho = PhysicsConstants.density  // Keep in g/cm³
@@ -213,10 +279,12 @@ class EggCalculationEngine {
             // Use empirical fallback if physics calculation seems off
             let baseTime = 240.0 // 4 minutes base
             let weightFactor = pow(m / 55.0, 0.67)
-            let tempFactor = parameters.startingTemperature == .fridge ? 1.2 : 1.0
+            // Use actual starting temperature in fallback calculation
+            let tempFactor = (100.0 - t0) / (100.0 - 20.0) // Scale based on actual temp difference
             let consistencyFactor = parameters.consistency == .soft ? 0.7 : 
                                   parameters.consistency == .medium ? 1.0 : 1.4
-            return baseTime * weightFactor * tempFactor * consistencyFactor
+            let fallbackResult = baseTime * weightFactor * tempFactor * consistencyFactor
+            return fallbackResult
         }
         
         return result
@@ -257,6 +325,7 @@ class EggTimerViewModel: ObservableObject {
     // MARK: - Private Properties
     
     private var timer: Timer?
+    private var endDate: Date?
     
     // MARK: - Computed Properties
     
@@ -285,10 +354,12 @@ class EggTimerViewModel: ObservableObject {
             weight: size.defaultWeight,
             startingTemperature: eggParameters.startingTemperature,
             consistency: eggParameters.consistency,
-            waterStart: eggParameters.waterStart
+            waterStart: eggParameters.waterStart,
+            ambientRoomTemperature: eggParameters.ambientRoomTemperature
         )
         clearValidationErrors()
         updatePreviewTime()
+        saveDefaults()
     }
     
     func updateWeight(_ weight: Double) {
@@ -297,10 +368,12 @@ class EggTimerViewModel: ObservableObject {
             weight: weight,
             startingTemperature: eggParameters.startingTemperature,
             consistency: eggParameters.consistency,
-            waterStart: eggParameters.waterStart
+            waterStart: eggParameters.waterStart,
+            ambientRoomTemperature: eggParameters.ambientRoomTemperature
         )
         clearValidationErrors()
         updatePreviewTime()
+        saveDefaults()
     }
     
     func updateStartingTemperature(_ temperature: StartingTemperature) {
@@ -309,10 +382,12 @@ class EggTimerViewModel: ObservableObject {
             weight: eggParameters.weight,
             startingTemperature: temperature,
             consistency: eggParameters.consistency,
-            waterStart: eggParameters.waterStart
+            waterStart: eggParameters.waterStart,
+            ambientRoomTemperature: eggParameters.ambientRoomTemperature
         )
         clearValidationErrors()
         updatePreviewTime()
+        saveDefaults()
     }
     
     func updateConsistency(_ consistency: EggConsistency) {
@@ -321,10 +396,12 @@ class EggTimerViewModel: ObservableObject {
             weight: eggParameters.weight,
             startingTemperature: eggParameters.startingTemperature,
             consistency: consistency,
-            waterStart: eggParameters.waterStart
+            waterStart: eggParameters.waterStart,
+            ambientRoomTemperature: eggParameters.ambientRoomTemperature
         )
         clearValidationErrors()
         updatePreviewTime()
+        saveDefaults()
     }
     
     func updateWaterStart(_ waterStart: WaterStart) {
@@ -333,10 +410,26 @@ class EggTimerViewModel: ObservableObject {
             weight: eggParameters.weight,
             startingTemperature: eggParameters.startingTemperature,
             consistency: eggParameters.consistency,
-            waterStart: waterStart
+            waterStart: waterStart,
+            ambientRoomTemperature: eggParameters.ambientRoomTemperature
         )
         clearValidationErrors()
         updatePreviewTime()
+        saveDefaults()
+    }
+
+    func updateAmbientRoomTemperature(_ temperature: Double) {
+        eggParameters = EggParameters(
+            size: eggParameters.size,
+            weight: eggParameters.weight,
+            startingTemperature: eggParameters.startingTemperature,
+            consistency: eggParameters.consistency,
+            waterStart: eggParameters.waterStart,
+            ambientRoomTemperature: max(0, temperature)
+        )
+        clearValidationErrors()
+        updatePreviewTime()
+        saveDefaults()
     }
     
     // MARK: - Calculation Methods
@@ -357,6 +450,7 @@ class EggTimerViewModel: ObservableObject {
         
         showingTimerView = true
         startTimer()
+        saveDefaults()
     }
     
     // MARK: - Preview Time Calculation
@@ -383,13 +477,16 @@ class EggTimerViewModel: ObservableObject {
         scheduleNotification()
         
         // Start the timer
+        endDate = Date().addingTimeInterval(remainingTime)
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self = self else { return }
                 
-                if self.remainingTime > 0 {
-                    self.remainingTime -= 1
-                } else {
+                if let end = self.endDate {
+                    let newRemaining = max(0, end.timeIntervalSinceNow)
+                    self.remainingTime = newRemaining
+                }
+                if self.remainingTime <= 0 {
                     self.stopAndReturn()
                 }
             }
@@ -404,6 +501,7 @@ class EggTimerViewModel: ObservableObject {
         
         timer?.invalidate()
         timer = nil
+        endDate = nil
         
         // Cancel notification
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
@@ -412,6 +510,7 @@ class EggTimerViewModel: ObservableObject {
     func resetTimer() {
         timer?.invalidate()
         timer = nil
+        endDate = nil
         
         isTimerRunning = false
         isTimerPaused = false
@@ -423,6 +522,7 @@ class EggTimerViewModel: ObservableObject {
     func stopAndReturn() {
         resetTimer()
         showingTimerView = false
+        clearBadge()
     }
     
     // MARK: - Notification Methods
@@ -442,7 +542,8 @@ class EggTimerViewModel: ObservableObject {
         content.sound = .default
         content.badge = 1
         
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: remainingTime, repeats: false)
+        let seconds = max(1, Int((endDate?.timeIntervalSinceNow ?? remainingTime)))
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(seconds), repeats: false)
         let request = UNNotificationRequest(identifier: "eggTimer", content: content, trigger: trigger)
         
         UNUserNotificationCenter.current().add(request) { error in
@@ -450,6 +551,56 @@ class EggTimerViewModel: ObservableObject {
                 print("Notification scheduling error: \(error)")
             }
         }
+    }
+
+    // MARK: - Persistence (Auto-Save Last Configuration)
+    private let defaultsKey = "lastEggParameters"
+    
+    private func saveDefaults() {
+        let encoder = JSONEncoder()
+        if let data = try? encoder.encode(eggParameters) {
+            UserDefaults.standard.set(data, forKey: defaultsKey)
+        }
+    }
+    
+    private func loadDefaultsIfAvailable() {
+        let decoder = JSONDecoder()
+        if let data = UserDefaults.standard.data(forKey: defaultsKey),
+           let params = try? decoder.decode(EggParameters.self, from: data) {
+            eggParameters = params
+        }
+    }
+    
+    func refreshRemainingIfNeeded() {
+        if let end = endDate, isTimerRunning {
+            remainingTime = max(0, end.timeIntervalSinceNow)
+            if remainingTime <= 0 { stopAndReturn() }
+        }
+    }
+
+    func appDidBecomeActive() {
+        refreshRemainingIfNeeded()
+        if isTimerRunning {
+            // reschedule to the new remaining time to keep accuracy
+            UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+            scheduleNotification()
+        }
+        // Clear badge when app becomes active
+        clearBadge()
+    }
+    
+    func clearBadge() {
+        UNUserNotificationCenter.current().setBadgeCount(0) { error in
+            if let error = error {
+                print("Error clearing badge: \(error)")
+            }
+        }
+    }
+
+    // MARK: - Init
+    init() {
+        loadDefaultsIfAvailable()
+        updatePreviewTime()
     }
     
     // MARK: - Favorites Methods
@@ -489,6 +640,7 @@ struct ContentView: View {
 
 struct EggInputView: View {
     @StateObject private var viewModel = EggTimerViewModel()
+    @Environment(\.scenePhase) private var scenePhase
     
     var body: some View {
         NavigationView {
@@ -529,21 +681,17 @@ struct EggInputView: View {
                     .padding(.top, 8)
                     .navigationTitle("")
                     .preferredColorScheme(.light)
-                    .toolbar {
-                        ToolbarItem(placement: .primaryAction) {
-                            Menu {
-                                Button("Favorit laden", action: viewModel.loadFavorite)
-                                Button("Als Favorit speichern", action: viewModel.saveAsFavorite)
-                            } label: {
-                                Image(systemName: "ellipsis.circle")
-                            }
-                        }
-                    }
+                    // Toolbar entfernt – Auto-Save ist aktiv
                 }
             }
         }
-        .onAppear {
+        .onAppear { 
             viewModel.updatePreviewTime()
+            viewModel.clearBadge() // Clear badge when app starts
+            viewModel.requestNotificationPermission() // Ask for notification permission on app start
+        }
+        .onChange(of: scenePhase) {
+            if scenePhase == .active { viewModel.appDidBecomeActive() }
         }
     }
     
@@ -553,7 +701,7 @@ struct EggInputView: View {
         Image("egg-logo")
             .resizable()
             .aspectRatio(contentMode: .fit)
-            .frame(width: 120, height: 120)
+            .frame(maxWidth: 120, maxHeight: 120)
             .shadow(color: .orange.opacity(0.3), radius: 12, x: 0, y: 6)
     }
     
@@ -637,6 +785,30 @@ struct EggInputView: View {
             .padding(.vertical, 8)
             .background(Color.blue.opacity(0.2))
             .cornerRadius(20)
+
+            if viewModel.eggParameters.startingTemperature == .room {
+                HStack {
+                    Text("Raumtemperatur: \(Int(viewModel.eggParameters.ambientRoomTemperature ?? 20))°C")
+                        .font(.subheadline)
+                        .foregroundColor(.orange)
+                    Spacer()
+                }
+                Slider(
+                    value: Binding(
+                        get: { viewModel.eggParameters.ambientRoomTemperature ?? 20 },
+                        set: { viewModel.updateAmbientRoomTemperature($0) }
+                    ),
+                    in: 10...30,
+                    step: 0.5
+                ) {
+                    Text("Raumtemperatur")
+                } minimumValueLabel: {
+                    Text("10°C").font(.caption).foregroundColor(.secondary)
+                } maximumValueLabel: {
+                    Text("30°C").font(.caption).foregroundColor(.secondary)
+                }
+                .accentColor(.orange)
+            }
         }
         .padding(.vertical, 4)
     }
@@ -749,36 +921,59 @@ struct EggInputView: View {
 
 struct EggTimerView: View {
     @ObservedObject var viewModel: EggTimerViewModel
+    @StateObject private var chickenManager = ChickenManager()
     
     var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Large custom title
-                    Text("Timer läuft")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
-                        .padding(.top, 20)
-                    
-                    // Header with Logo and App Name
-                    timerHeaderSection
-                    
-                    Spacer()
-                    
-                    // Main timer display
-                    timerDisplaySection(size: geometry.size)
-                    
-                    Spacer()
-                    
-                    // Control buttons
-                    controlButtonsSection
-                    
-                    Spacer()
-                }
-                .padding()
+        VStack(spacing: 16) {
+            // Title - kompakter
+            Text("Timer läuft")
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+                .padding(.top, 8)
+            
+            // Header
+            timerHeaderSection
+            
+            // Main timer display
+            GeometryReader { geometry in
+                timerDisplaySection(size: geometry.size)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
+            .frame(height: 250) // Kleinere Höhe für den Timer-Bereich
+            
+            // Control buttons and chicken in horizontal layout
+            HStack(alignment: .top, spacing: 20) {
+                // Stop button - weiter links
+                Button(action: {
+                    viewModel.stopAndReturn()
+                }) {
+                    VStack {
+                        Image(systemName: "stop.fill")
+                            .font(.title2)
+                            .foregroundColor(.red)
+                        Text("Timer stoppen")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.red)
+                    }
+                    .frame(width: 90, height: 70)
+                }
+                
+                Spacer()
+                
+                // Chicken section - größer mit mehr Daten
+                expandedChickenSection
+            }
+            .padding(.horizontal)
+            
+            // Bio-Siegel Sektion
+            bioSiegelSection
+            
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.horizontal, 12)
         .navigationTitle("")
         .preferredColorScheme(.light)
     }
@@ -794,7 +989,7 @@ struct EggTimerView: View {
                     .font(.headline)
             }
             
-            HStack(spacing: 16) {
+            HStack(spacing: 8) {
                 InfoChip(
                     icon: "scalemass",
                     text: "\(Int(viewModel.eggParameters.weight))g"
@@ -802,7 +997,7 @@ struct EggTimerView: View {
                 
                 InfoChip(
                     icon: "thermometer",
-                    text: viewModel.eggParameters.startingTemperature == .fridge ? "4°C" : "20°C"
+                    text: viewModel.eggParameters.startingTemperature == .fridge ? "4°C" : "\(Int(viewModel.eggParameters.ambientRoomTemperature ?? 20))°C"
                 )
                 
                 InfoChip(
@@ -810,11 +1005,12 @@ struct EggTimerView: View {
                     text: viewModel.eggParameters.consistency.displayName
                 )
             }
+            .frame(maxWidth: .infinity)
         }
     }
     
     private func timerDisplaySection(size: CGSize) -> some View {
-        let circleSize = min(size.width, size.height) * 0.6
+        let circleSize: CGFloat = 250 // Feste Größe statt berechnet
         
         return ZStack {
             // Background circle
@@ -860,62 +1056,125 @@ struct EggTimerView: View {
         }
     }
     
-    private var controlButtonsSection: some View {
-        HStack(spacing: 20) {
-            // Reset button
-            Button(action: viewModel.resetTimer) {
+    private var expandedChickenSection: some View {
+        VStack(spacing: 10) {
+            if chickenManager.isLoading {
                 VStack {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.title2)
-                    Text("Reset")
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Lade Hühnerrasse...")
                         .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-                .frame(width: 80, height: 60)
-                .background(Color.gray.opacity(0.2))
-                .cornerRadius(12)
-            }
-            .foregroundColor(.primary)
-            
-            Spacer()
-            
-            // Main control button (Play/Pause)
-            Button(action: {
-                if viewModel.isTimerRunning {
-                    viewModel.pauseTimer()
-                } else {
-                    viewModel.startTimer()
+            } else if let chicken = chickenManager.currentChicken {
+                VStack(spacing: 8) {
+                    // Chicken image - größer
+                    AsyncImage(url: URL(string: chicken.imageUrl)) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    } placeholder: {
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.3))
+                            .overlay(
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            )
+                    }
+                    .frame(width: 100, height: 100)
+                    .cornerRadius(12)
+                    
+                    // Chicken info - erweitert
+                    VStack(spacing: 4) {
+                        Text(chicken.name)
+                            .font(.subheadline)
+                            .fontWeight(.bold)
+                            .multilineTextAlignment(.center)
+                        
+                        Text("Herkunft: \(chicken.origin)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        // Breed data
+                        VStack(spacing: 2) {
+                            HStack(spacing: 8) {
+                                Text("🥚 \(chicken.eggColor)")
+                                Text("📏 \(chicken.eggSize)")
+                            }
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                            
+                            Text("📊 \(chicken.eggNumber) Eier/Jahr")
+                                .font(.caption2)
+                                .foregroundColor(.orange)
+                            
+                            Text("🐔 \(chicken.temperament)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                        }
+                    }
+                    
+                    // Refresh button
+                    Button("Neues Huhn 🐔") {
+                        chickenManager.loadRandomChicken()
+                    }
+                    .font(.caption)
+                    .foregroundColor(.orange)
                 }
-            }) {
-                VStack {
-                    Image(systemName: viewModel.isTimerRunning ? "pause.fill" : "play.fill")
-                        .font(.title)
-                    Text(viewModel.isTimerRunning ? "Pause" : "Start")
-                        .font(.caption)
-                }
-                .frame(width: 100, height: 80)
-                .background(Color.orange)
-                .foregroundColor(.white)
+                .padding(12)
+                .background(Color.orange.opacity(0.1))
                 .cornerRadius(16)
+                .frame(maxWidth: 180)
+            } else if chickenManager.errorMessage != nil {
+                VStack {
+                    Text("🐔")
+                        .font(.title2)
+                    Text("Fehler beim Laden")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                    Button("Erneut versuchen") {
+                        chickenManager.loadRandomChicken()
+                    }
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                }
+                .padding(12)
+            }
+        }
+        .onAppear {
+            chickenManager.loadRandomChicken()
+        }
+    }
+    
+    private var bioSiegelSection: some View {
+        HStack(spacing: 12) {
+            Spacer()
+            
+            // Bio-Siegel
+            Image("bio")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 60, height: 60)
+            
+            // Claim Text
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Nutzen Sie Bio Eier für")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text("glücklichere Hühner")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.green)
             }
             
             Spacer()
-            
-            // Stop button
-            Button(action: {
-                viewModel.stopAndReturn()
-            }) {
-                VStack {
-                    Image(systemName: "stop.fill")
-                        .font(.title2)
-                    Text("Stop")
-                        .font(.caption)
-                }
-                .frame(width: 80, height: 60)
-                .background(Color.red.opacity(0.2))
-                .cornerRadius(12)
-            }
-            .foregroundColor(.red)
         }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color.green.opacity(0.05))
+        .cornerRadius(12)
         .padding(.horizontal)
     }
 }
